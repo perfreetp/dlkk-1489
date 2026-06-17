@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/Layout';
 import { WarrantyCard, StatusBadge } from '@/components/Card';
 import { Input } from '@/components/Form';
 import { useWarrantyStore } from '@/store/warrantyStore';
-import { getBlacklistByPhone } from '@/data/blacklist';
 import type { Warranty, BlacklistItem, Claim } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +13,7 @@ type SearchType = 'phone' | 'card';
 
 export default function Query() {
   const navigate = useNavigate();
-  const { searchWarranties, blacklist } = useWarrantyStore();
+  const { searchWarranties, getBlacklistByPhone } = useWarrantyStore();
 
   const [searchType, setSearchType] = useState<SearchType>('phone');
   const [keyword, setKeyword] = useState('');

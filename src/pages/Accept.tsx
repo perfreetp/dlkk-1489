@@ -224,8 +224,7 @@ export default function Accept() {
       storeName: formData.warranty.storeName,
     };
 
-    addClaim(newClaim);
-    const createdClaim = claims[claims.length - 1];
+    const createdClaim = addClaim(newClaim);
     setSubmittedClaim(createdClaim);
     setShowSuccess(true);
   };

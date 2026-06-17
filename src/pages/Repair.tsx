@@ -238,13 +238,12 @@ export default function Repair() {
       signDate: formData.customerSigned ? formData.signDate : undefined,
     };
 
-    addRepair(newRepair);
+    const createdRepair = addRepair(newRepair);
     updateClaim(formData.selectedClaim.id, {
       status: formData.selectedSolution === 'rejected' ? 'rejected' : 'approved',
       handler: '当前操作员',
     });
 
-    const createdRepair = useWarrantyStore.getState().repairs[useWarrantyStore.getState().repairs.length - 1];
     setSubmittedRepair(createdRepair);
     setShowSuccess(true);
   };

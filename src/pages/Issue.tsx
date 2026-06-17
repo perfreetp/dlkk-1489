@@ -1,16 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import dayjs from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   Phone, 
   Smartphone, 
-  MapPin, 
   Shield, 
-  Calendar, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle,
   Copy,
   MessageSquare,
   Download,
@@ -18,13 +16,14 @@ import {
   Eye,
   Send,
   X,
-  Plus
+  Plus,
+  CreditCard,
+  ArrowRight
 } from 'lucide-react';
 import { PageHeader, Container } from '@/components/Layout';
 import { Input, Select, Textarea } from '@/components/Form';
 import { WarrantyCard } from '@/components/Card';
 import { useWarrantyStore } from '@/store/warrantyStore';
-import { getBlacklistByPhone } from '@/data/blacklist';
 import { getStoreOptions } from '@/data/stores';
 import type { Warranty, BlacklistItem, FormOption } from '@/types';
 import { cn } from '@/lib/utils';
@@ -103,16 +102,11 @@ interface FormErrors {
   warrantyDays?: string;
 }
 
-const generateCardNo = () => {
-  const dateStr = dayjs().format('YYYYMMDD');
-  const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-  return `WB${dateStr}${random}`;
-};
-
 const phoneRegex = /^1[3-9]\d{9}$/;
 
 export default function Issue() {
-  const { stores, blacklist, addWarranty } = useWarrantyStore();
+  const navigate = useNavigate();
+  const { stores, addWarranty, getBlacklistByPhone } = useWarrantyStore();
   const storeOptions = getStoreOptions();
 
   const [formData, setFormData] = useState<FormData>({
@@ -134,8 +128,16 @@ export default function Issue() {
   const [showPreview, setShowPreview] = useState(false);
   const [newExclusion, setNewExclusion] = useState('');
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [createdWarranty, setCreatedWarranty] = useState<Warranty | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const cardNo = useMemo(() => generateCardNo(), []);
+  const cardNo = useMemo(() => createdWarranty?.cardNo || '', [createdWarranty]);
+  const previewCardNo = useMemo(() => {
+    if (createdWarranty) return createdWarranty.cardNo;
+    const dateStr = dayjs().format('YYYYMMDD');
+    const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+    return `WB${dateStr}${random}`;
+  }, [createdWarranty]);
 
   useEffect(() => {
     if (formData.phone && phoneRegex.test(formData.phone)) {
@@ -144,7 +146,7 @@ export default function Issue() {
     } else {
       setBlacklistInfo(null);
     }
-  }, [formData.phone]);
+  }, [formData.phone, getBlacklistByPhone]);
 
   const handleInputChange = (field: keyof FormData, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -232,6 +234,7 @@ export default function Issue() {
   };
 
   const previewWarranty = useMemo((): Warranty => {
+    if (createdWarranty) return createdWarranty;
     const store = stores.find(s => s.id === formData.storeId);
     const warrantyDays = parseInt(formData.warrantyDays) || 90;
     const issueDate = dayjs().format('YYYY-MM-DD');
@@ -239,7 +242,7 @@ export default function Issue() {
 
     return {
       id: 'preview',
-      cardNo: cardNo,
+      cardNo: previewCardNo,
       customerName: formData.customerName || '客户姓名',
       phone: formData.phone || '13800138000',
       phoneModel: formData.phoneModel || 'iPhone 15 Pro',
@@ -256,12 +259,13 @@ export default function Issue() {
       claims: [],
       signed: false,
     };
-  }, [formData, stores, cardNo]);
+  }, [formData, stores, previewCardNo, createdWarranty]);
 
   const smsContent = useMemo(() => {
-    const url = `https://warranty.example.com/query?cardNo=${cardNo}`;
-    return `【XX维修】尊敬的${formData.customerName || '客户'}，您的${formData.phoneModel || '手机'}手机维修质保卡已生成，卡号${cardNo}，保修期${formData.warrantyDays || '90'}天。点击查看详情：${url}`;
-  }, [formData.customerName, formData.phoneModel, formData.warrantyDays, cardNo]);
+    const currentCardNo = createdWarranty ? createdWarranty.cardNo : previewCardNo;
+    const url = `https://warranty.example.com/query?cardNo=${currentCardNo}`;
+    return `【XX维修】尊敬的${formData.customerName || '客户'}，您的${formData.phoneModel || '手机'}手机维修质保卡已生成，卡号${currentCardNo}，保修期${formData.warrantyDays || '90'}天。点击查看详情：${url}`;
+  }, [formData.customerName, formData.phoneModel, formData.warrantyDays, previewCardNo, createdWarranty]);
 
   const handlePreview = () => {
     setShowPreview(true);
@@ -275,7 +279,7 @@ export default function Issue() {
     const issueDate = dayjs().format('YYYY-MM-DD');
     const expireDate = dayjs().add(warrantyDays, 'day').format('YYYY-MM-DD');
 
-    addWarranty({
+    const newWarranty = addWarranty({
       customerName: formData.customerName,
       phone: formData.phone,
       phoneModel: formData.phoneModel,
@@ -293,21 +297,8 @@ export default function Issue() {
       signed: false,
     });
 
-    alert('质保卡生成成功！');
-    setFormData({
-      customerName: '',
-      phone: '',
-      confirmPhone: '',
-      storeId: '',
-      phoneModel: '',
-      imei: '',
-      repairItems: [],
-      repairContent: '',
-      warrantyDays: '90',
-      exclusions: [...defaultExclusions],
-      technician: '当前用户',
-    });
-    setShowPreview(false);
+    setCreatedWarranty(newWarranty);
+    setShowSuccessModal(true);
   };
 
   const handleCopy = async (text: string, type: string) => {
@@ -600,14 +591,14 @@ export default function Issue() {
             <div className="flex justify-center">
               <div className="p-4 bg-white rounded-xl">
                 <QRCodeSVG
-                  value={`https://warranty.example.com/query?cardNo=${cardNo}`}
+                  value={`https://warranty.example.com/query?cardNo=${createdWarranty ? createdWarranty.cardNo : previewCardNo}`}
                   size={160}
                   level="M"
                 />
               </div>
             </div>
             <p className="text-center text-sm text-dark-400 mt-3">
-              卡号：<span className="font-mono text-primary-400">{cardNo}</span>
+              卡号：<span className="font-mono text-primary-400">{createdWarranty ? createdWarranty.cardNo : previewCardNo}</span>
             </p>
           </div>
 
@@ -646,7 +637,7 @@ export default function Issue() {
             <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
-                onClick={() => handleCopy(`https://warranty.example.com/query?cardNo=${cardNo}`, 'link')}
+                onClick={() => handleCopy(`https://warranty.example.com/query?cardNo=${createdWarranty ? createdWarranty.cardNo : previewCardNo}`, 'link')}
                 className="flex flex-col items-center gap-2 p-4 rounded-xl bg-dark-700 hover:bg-dark-600 transition-colors"
               >
                 {copySuccess === 'link' ? (
@@ -677,6 +668,71 @@ export default function Issue() {
           </div>
         </div>
       </div>
+
+      {showSuccessModal && createdWarranty && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-dark-800 rounded-xl p-8 max-w-md w-full mx-4">
+            <div className="w-20 h-20 bg-success-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-success-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2 text-center">质保卡生成成功</h2>
+            <div className="bg-dark-900/50 rounded-xl p-4 mb-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-dark-400 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" /> 质保卡号
+                </span>
+                <span className="text-primary-400 font-mono font-bold text-lg">{createdWarranty.cardNo}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-dark-400">客户</span>
+                <span className="text-white">{createdWarranty.customerName}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-dark-400">机型</span>
+                <span className="text-white">{createdWarranty.phoneModel}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-dark-400">保修期</span>
+                <span className="text-success-400">{createdWarranty.warrantyDays}天（至{createdWarranty.expireDate}）</span>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <button
+                className="btn btn-primary w-full"
+                onClick={() => {
+                  navigate('/query');
+                }}
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                去客户查询页验证
+              </button>
+              <button
+                className="btn btn-secondary w-full"
+                onClick={() => {
+                  setFormData({
+                    customerName: '',
+                    phone: '',
+                    confirmPhone: '',
+                    storeId: '',
+                    phoneModel: '',
+                    imei: '',
+                    repairItems: [],
+                    repairContent: '',
+                    warrantyDays: '90',
+                    exclusions: [...defaultExclusions],
+                    technician: '当前用户',
+                  });
+                  setCreatedWarranty(null);
+                  setShowSuccessModal(false);
+                  setShowPreview(false);
+                }}
+              >
+                继续发放新卡
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Container>
   );
 }

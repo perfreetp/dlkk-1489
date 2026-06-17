@@ -21,6 +21,47 @@ import {
   mockDisputes,
 } from '../data';
 
+const STORAGE_KEY = 'warranty_platform_state_v1';
+
+interface PersistedState {
+  warranties: Warranty[];
+  claims: Claim[];
+  repairs: Repair[];
+  blacklist: BlacklistItem[];
+  visits: VisitRecord[];
+  disputes: DisputeRecord[];
+}
+
+const loadFromStorage = (): Partial<PersistedState> => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn('Failed to load state from localStorage:', e);
+  }
+  return {};
+};
+
+const saveToStorage = (state: Partial<PersistedState>) => {
+  try {
+    const toSave: PersistedState = {
+      warranties: state.warranties || [],
+      claims: state.claims || [],
+      repairs: state.repairs || [],
+      blacklist: state.blacklist || [],
+      visits: state.visits || [],
+      disputes: state.disputes || [],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch (e) {
+    console.warn('Failed to save state to localStorage:', e);
+  }
+};
+
+const stored = loadFromStorage();
+
 interface WarrantyState {
   warranties: Warranty[];
   claims: Claim[];
@@ -34,35 +75,63 @@ interface WarrantyState {
   loading: boolean;
   error: string | null;
 
-  addWarranty: (warranty: Omit<Warranty, 'id' | 'cardNo'>) => void;
+  addWarranty: (warranty: Omit<Warranty, 'id' | 'cardNo'>) => Warranty;
   updateWarranty: (id: string, data: Partial<Warranty>) => void;
-  addClaim: (claim: Omit<Claim, 'id'>) => void;
+  addClaim: (claim: Omit<Claim, 'id'>) => Claim;
   updateClaim: (id: string, data: Partial<Claim>) => void;
-  addRepair: (repair: Omit<Repair, 'id'>) => void;
-  addDispute: (dispute: Omit<DisputeRecord, 'id'>) => void;
+  addRepair: (repair: Omit<Repair, 'id'>) => Repair;
+  addDispute: (dispute: Omit<DisputeRecord, 'id'>) => DisputeRecord;
   updateDispute: (id: string, data: Partial<DisputeRecord>) => void;
-  addToBlacklist: (item: Omit<BlacklistItem, 'id'>) => void;
+  addToBlacklist: (item: Omit<BlacklistItem, 'id'>) => BlacklistItem;
   removeFromBlacklist: (id: string) => void;
-  addVisit: (visit: Omit<VisitRecord, 'id'>) => void;
+  addVisit: (visit: Omit<VisitRecord, 'id'>) => VisitRecord;
   setCurrentWarranty: (warranty: Warranty | null) => void;
   setCurrentClaim: (claim: Claim | null) => void;
   getStats: () => StatsData;
   searchWarranties: (keyword: string) => Warranty[];
   searchClaims: (params: QueryParams) => Claim[];
   getExpiringWarranties: (days: number) => Warranty[];
+  getBlacklistByPhone: (phone: string) => BlacklistItem | undefined;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
-const generateCardNo = () => `W${dayjs().format('YYYYMM')}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+const generateCardNo = () => {
+  const dateStr = dayjs().format('YYYYMMDD');
+  const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  return `WB${dateStr}${random}`;
+};
+
+const hydrateWarrantyClaims = (warranties: Warranty[], claims: Claim[]): Warranty[] => {
+  return warranties.map(w => ({
+    ...w,
+    claims: claims.filter(c => c.warrantyId === w.id),
+  }));
+};
+
+const hydrateClaimRepair = (claims: Claim[], repairs: Repair[]): Claim[] => {
+  return claims.map(c => {
+    const repair = repairs.find(r => r.claimId === c.id);
+    return repair ? { ...c, repair } : c;
+  });
+};
+
+const initialWarrantiesRaw = stored.warranties ?? mockWarranties;
+const initialClaimsRaw = stored.claims ?? mockClaims;
+const initialRepairs = stored.repairs ?? mockRepairs;
+const initialClaims = hydrateClaimRepair(initialClaimsRaw, initialRepairs);
+const initialWarranties = hydrateWarrantyClaims(initialWarrantiesRaw, initialClaims);
+const initialBlacklist = stored.blacklist ?? mockBlacklist;
+const initialVisits = stored.visits ?? mockVisits;
+const initialDisputes = stored.disputes ?? mockDisputes;
 
 export const useWarrantyStore = create<WarrantyState>((set, get) => ({
-  warranties: mockWarranties,
-  claims: mockClaims,
-  repairs: mockRepairs,
+  warranties: initialWarranties,
+  claims: initialClaims,
+  repairs: initialRepairs,
   stores: mockStores,
-  blacklist: mockBlacklist,
-  visits: mockVisits,
-  disputes: mockDisputes,
+  blacklist: initialBlacklist,
+  visits: initialVisits,
+  disputes: initialDisputes,
   currentWarranty: null,
   currentClaim: null,
   loading: false,
@@ -75,15 +144,36 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       cardNo: generateCardNo(),
       claims: [],
     };
-    set((state) => ({ warranties: [...state.warranties, newWarranty] }));
+    set((state) => {
+      const newWarranties = [...state.warranties, newWarranty];
+      saveToStorage({
+        warranties: newWarranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { warranties: newWarranties };
+    });
+    return newWarranty;
   },
 
   updateWarranty: (id, data) => {
-    set((state) => ({
-      warranties: state.warranties.map((w) =>
+    set((state) => {
+      const newWarranties = state.warranties.map((w) =>
         w.id === id ? { ...w, ...data } : w
-      ),
-    }));
+      );
+      saveToStorage({
+        warranties: newWarranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { warranties: newWarranties };
+    });
   },
 
   addClaim: (claim) => {
@@ -91,15 +181,45 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       ...claim,
       id: `C${generateId()}`,
     };
-    set((state) => ({ claims: [...state.claims, newClaim] }));
+    set((state) => {
+      const newClaims = [...state.claims, newClaim];
+      const newWarranties = state.warranties.map((w) =>
+        w.id === claim.warrantyId
+          ? { ...w, claims: [...w.claims, newClaim] }
+          : w
+      );
+      saveToStorage({
+        warranties: newWarranties,
+        claims: newClaims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { claims: newClaims, warranties: newWarranties };
+    });
+    return newClaim;
   },
 
   updateClaim: (id, data) => {
-    set((state) => ({
-      claims: state.claims.map((c) =>
+    set((state) => {
+      const newClaims = state.claims.map((c) =>
         c.id === id ? { ...c, ...data } : c
-      ),
-    }));
+      );
+      const newWarranties = state.warranties.map((w) => ({
+        ...w,
+        claims: w.claims.map((c) => (c.id === id ? { ...c, ...data } : c)),
+      }));
+      saveToStorage({
+        warranties: newWarranties,
+        claims: newClaims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { claims: newClaims, warranties: newWarranties };
+    });
   },
 
   addRepair: (repair) => {
@@ -107,7 +227,28 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       ...repair,
       id: `R${generateId()}`,
     };
-    set((state) => ({ repairs: [...state.repairs, newRepair] }));
+    set((state) => {
+      const newRepairs = [...state.repairs, newRepair];
+      const newClaims = state.claims.map((c) =>
+        c.id === repair.claimId ? { ...c, repair: newRepair } : c
+      );
+      const newWarranties = state.warranties.map((w) => ({
+        ...w,
+        claims: w.claims.map((c) =>
+          c.id === repair.claimId ? { ...c, repair: newRepair } : c
+        ),
+      }));
+      saveToStorage({
+        warranties: newWarranties,
+        claims: newClaims,
+        repairs: newRepairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { repairs: newRepairs, claims: newClaims, warranties: newWarranties };
+    });
+    return newRepair;
   },
 
   addDispute: (dispute) => {
@@ -115,15 +256,36 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       ...dispute,
       id: `D${generateId()}`,
     };
-    set((state) => ({ disputes: [...state.disputes, newDispute] }));
+    set((state) => {
+      const newDisputes = [...state.disputes, newDispute];
+      saveToStorage({
+        warranties: state.warranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: newDisputes,
+      });
+      return { disputes: newDisputes };
+    });
+    return newDispute;
   },
 
   updateDispute: (id, data) => {
-    set((state) => ({
-      disputes: state.disputes.map((d) =>
+    set((state) => {
+      const newDisputes = state.disputes.map((d) =>
         d.id === id ? { ...d, ...data } : d
-      ),
-    }));
+      );
+      saveToStorage({
+        warranties: state.warranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: state.visits,
+        disputes: newDisputes,
+      });
+      return { disputes: newDisputes };
+    });
   },
 
   addToBlacklist: (item) => {
@@ -131,13 +293,34 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       ...item,
       id: `B${generateId()}`,
     };
-    set((state) => ({ blacklist: [...state.blacklist, newItem] }));
+    set((state) => {
+      const newBlacklist = [...state.blacklist, newItem];
+      saveToStorage({
+        warranties: state.warranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: newBlacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { blacklist: newBlacklist };
+    });
+    return newItem;
   },
 
   removeFromBlacklist: (id) => {
-    set((state) => ({
-      blacklist: state.blacklist.filter((item) => item.id !== id),
-    }));
+    set((state) => {
+      const newBlacklist = state.blacklist.filter((item) => item.id !== id);
+      saveToStorage({
+        warranties: state.warranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: newBlacklist,
+        visits: state.visits,
+        disputes: state.disputes,
+      });
+      return { blacklist: newBlacklist };
+    });
   },
 
   addVisit: (visit) => {
@@ -145,7 +328,19 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       ...visit,
       id: `V${generateId()}`,
     };
-    set((state) => ({ visits: [...state.visits, newVisit] }));
+    set((state) => {
+      const newVisits = [...state.visits, newVisit];
+      saveToStorage({
+        warranties: state.warranties,
+        claims: state.claims,
+        repairs: state.repairs,
+        blacklist: state.blacklist,
+        visits: newVisits,
+        disputes: state.disputes,
+      });
+      return { visits: newVisits };
+    });
+    return newVisit;
   },
 
   setCurrentWarranty: (warranty) => {
@@ -303,5 +498,10 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
       const diff = expireDate.diff(today, 'day');
       return diff >= 0 && diff <= days;
     });
+  },
+
+  getBlacklistByPhone: (phone) => {
+    const { blacklist } = get();
+    return blacklist.find((b) => b.phone === phone);
   },
 }));
