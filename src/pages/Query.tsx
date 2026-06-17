@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Phone, CreditCard, ShieldAlert, CheckCircle, Clock, XCircle, Send, History, FileText, AlertTriangle, Shield, X } from 'lucide-react';
+import { Search, Phone, CreditCard, ShieldAlert, CheckCircle, Clock, XCircle, Send, History, FileText, AlertTriangle, Shield, X, Eye, Wrench, DollarSign, User, Package } from 'lucide-react';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/Layout';
 import { WarrantyCard, StatusBadge } from '@/components/Card';
@@ -25,6 +25,8 @@ export default function Query() {
   const [blacklistItem, setBlacklistItem] = useState<BlacklistItem | null>(null);
   const [showBlacklistModal, setShowBlacklistModal] = useState(false);
   const [selectedWarranty, setSelectedWarranty] = useState<Warranty | null>(null);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [showClaimDetail, setShowClaimDetail] = useState(false);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
@@ -54,13 +56,15 @@ export default function Query() {
       alert('请输入搜索关键词');
       return;
     }
-    if (!verificationCode.trim()) {
-      alert('请输入验证码');
-      return;
-    }
-    if (verificationCode.length !== 6) {
-      alert('请输入6位验证码');
-      return;
+    if (searchType === 'phone') {
+      if (!verificationCode.trim()) {
+        alert('请输入验证码');
+        return;
+      }
+      if (verificationCode.length !== 6) {
+        alert('请输入6位验证码');
+        return;
+      }
     }
 
     setLoading(true);
@@ -176,37 +180,39 @@ export default function Query() {
           <Input
             icon={Search}
             iconPosition="left"
-            placeholder={searchType === 'phone' ? '请输入手机号' : '请输入质保卡号'}
+            placeholder={searchType === 'phone' ? '请输入手机号' : '请输入质保卡号，如 WB20240101001'}
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onKeyPress={handleKeyPress}
             className="text-lg py-4"
           />
 
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Input
-                placeholder="请输入6位验证码"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                onKeyPress={handleKeyPress}
-                maxLength={6}
-                className="text-lg py-4 tracking-widest text-center font-mono"
-              />
+          {searchType === 'phone' && (
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Input
+                  placeholder="请输入6位验证码"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyPress={handleKeyPress}
+                  maxLength={6}
+                  className="text-lg py-4 tracking-widest text-center font-mono"
+                />
+              </div>
+              <button
+                onClick={handleSendCode}
+                disabled={codeCountdown > 0}
+                className={cn(
+                  'px-6 py-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap',
+                  codeCountdown > 0
+                    ? 'bg-dark-700 text-dark-400 cursor-not-allowed'
+                    : 'bg-dark-700 text-dark-200 hover:bg-dark-600'
+                )}
+              >
+                {codeCountdown > 0 ? `${codeCountdown}s后重发` : '获取验证码'}
+              </button>
             </div>
-            <button
-              onClick={handleSendCode}
-              disabled={codeCountdown > 0}
-              className={cn(
-                'px-6 py-4 rounded-lg font-medium transition-all duration-200 whitespace-nowrap',
-                codeCountdown > 0
-                  ? 'bg-dark-700 text-dark-400 cursor-not-allowed'
-                  : 'bg-dark-700 text-dark-200 hover:bg-dark-600'
-              )}
-            >
-              {codeCountdown > 0 ? `${codeCountdown}s后重发` : '获取验证码'}
-            </button>
-          </div>
+          )}
 
           <button
             onClick={handleSearch}
@@ -358,11 +364,18 @@ export default function Query() {
                     const remainingDays = dayjs(selectedWarranty.expireDate).diff(dayjs(claim.submitDate), 'day');
                     const remainingInfo = formatRemainingDays(remainingDays);
                     return (
-                      <div key={claim.id} className="relative pl-12">
+                      <div 
+                        key={claim.id} 
+                        className="relative pl-12 cursor-pointer"
+                        onClick={() => {
+                          setSelectedClaim(claim);
+                          setShowClaimDetail(true);
+                        }}
+                      >
                         <div className="absolute left-2 w-5 h-5 rounded-full bg-dark-800 border-2 border-dark-600 flex items-center justify-center">
                           {getTimelineIcon(claim.status)}
                         </div>
-                        <div className="bg-dark-800/50 rounded-xl p-4 border border-dark-700">
+                        <div className="bg-dark-800/50 rounded-xl p-4 border border-dark-700 hover:border-primary-500/50 transition-all duration-200 hover:bg-dark-800">
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <p className="font-medium text-white">{claim.faultDescription}</p>
@@ -373,13 +386,19 @@ export default function Query() {
                             <StatusBadge status={claim.status} type="claim" />
                           </div>
                           {claim.detectionResult && (
-                            <p className="text-sm text-dark-300 mb-2">
+                            <p className="text-sm text-dark-300 mb-2 line-clamp-1">
                               检测结果：{claim.detectionResult}
                             </p>
                           )}
                           {claim.rejectReason && (
                             <p className="text-sm text-danger-400 mb-2">
                               拒绝原因：{claim.rejectReason}
+                            </p>
+                          )}
+                          {claim.repair && (
+                            <p className="text-sm text-primary-400 mb-2">
+                              处理方案：{claim.repair.solutionType === 'free' ? '免费维修' : claim.repair.solutionType === 'discounted' ? '折价更换' : claim.repair.solutionType === 'escalated' ? '升级处理' : '拒保'}
+                              {claim.repair.cost > 0 && ` · 费用 ¥${claim.repair.cost}`}
                             </p>
                           )}
                           <div className="flex items-center gap-4 text-sm text-dark-400">
@@ -491,6 +510,234 @@ export default function Query() {
                   我已知晓
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClaimDetail && selectedClaim && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-2xl border border-dark-600 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-dark-800 px-6 py-4 border-b border-dark-700 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary-500/20 flex items-center justify-center">
+                  <Eye className="w-5 h-5 text-primary-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">核销申请详情</h3>
+                  <p className="text-sm text-dark-400">
+                    单号 <span className="font-mono text-primary-400">{selectedClaim.id}</span>
+                    {selectedClaim.cardNo && ` · ${selectedClaim.cardNo}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowClaimDetail(false)}
+                className="p-2 text-dark-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-dark-900/50 rounded-xl p-4 border border-dark-700">
+                  <h4 className="font-medium text-white mb-3 flex items-center gap-2">
+                    <User className="w-4 h-4 text-primary-400" />
+                    客户信息
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-dark-400">客户姓名</span>
+                      <span className="text-dark-200">{selectedClaim.customerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-dark-400">手机号</span>
+                      <span className="text-dark-200 font-mono">{selectedClaim.phone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-dark-400">手机型号</span>
+                      <span className="text-dark-200">{selectedClaim.phoneModel}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-dark-900/50 rounded-xl p-4 border border-dark-700">
+                  <h4 className="font-medium text-white mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-primary-400" />
+                    申请信息
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-dark-400">提交时间</span>
+                      <span className="text-dark-200">{dayjs(selectedClaim.submitDate).format('YYYY-MM-DD HH:mm')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-dark-400">受理门店</span>
+                      <span className="text-dark-200">{selectedClaim.storeName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-dark-400">当前状态</span>
+                      <StatusBadge status={selectedClaim.status} type="claim" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-dark-900/50 rounded-xl p-4 border border-dark-700">
+                <h4 className="font-medium text-white mb-3 flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-warning-400" />
+                  故障信息
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-xs text-dark-400 uppercase tracking-wider">故障现象</span>
+                    <p className="text-dark-200 mt-1 bg-dark-800/50 rounded-lg p-3">{selectedClaim.faultDescription}</p>
+                  </div>
+                  {selectedClaim.photos && selectedClaim.photos.length > 0 && (
+                    <div>
+                      <span className="text-xs text-dark-400 uppercase tracking-wider">现场照片</span>
+                      <div className="grid grid-cols-4 gap-2 mt-2">
+                        {selectedClaim.photos.map((photo, idx) => (
+                          <div
+                            key={idx}
+                            className="aspect-square bg-dark-700 rounded-lg flex items-center justify-center text-dark-500 text-xs border border-dark-600"
+                          >
+                            {photo}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-dark-900/50 rounded-xl p-4 border border-dark-700">
+                <h4 className="font-medium text-white mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-success-400" />
+                  检测结论
+                </h4>
+                <p className="text-dark-200 bg-dark-800/50 rounded-lg p-3">{selectedClaim.detectionResult || '暂无检测结论'}</p>
+                {selectedClaim.isCovered !== null && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-sm text-dark-400">是否保修：</span>
+                    {selectedClaim.isCovered ? (
+                      <span className="text-sm text-success-400 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" /> 属于保修范围
+                      </span>
+                    ) : (
+                      <span className="text-sm text-danger-400 flex items-center gap-1">
+                        <XCircle className="w-4 h-4" /> 不属于保修范围
+                      </span>
+                    )}
+                  </div>
+                )}
+                {selectedClaim.rejectReason && (
+                  <div className="mt-3">
+                    <span className="text-xs text-dark-400">拒保原因</span>
+                    <p className="text-danger-300 bg-danger-500/10 rounded-lg p-2 mt-1 text-sm border border-danger-500/20">
+                      {selectedClaim.rejectReason}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {selectedClaim.repair && (
+                <div className="bg-dark-900/50 rounded-xl p-4 border border-primary-500/30">
+                  <h4 className="font-medium text-white mb-4 flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-primary-400" />
+                    返修处理
+                  </h4>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-dark-800/50 rounded-lg p-3">
+                        <span className="text-xs text-dark-400">处理方案</span>
+                        <p className="text-primary-400 font-medium mt-1">
+                          {selectedClaim.repair.solutionType === 'free' && '免费维修'}
+                          {selectedClaim.repair.solutionType === 'discounted' && '折价更换'}
+                          {selectedClaim.repair.solutionType === 'rejected' && '拒保处理'}
+                          {selectedClaim.repair.solutionType === 'escalated' && '升级主管'}
+                        </p>
+                      </div>
+                      <div className="bg-dark-800/50 rounded-lg p-3">
+                        <span className="text-xs text-dark-400">客户支付费用</span>
+                        <p className="text-warning-400 font-medium mt-1 text-lg">
+                          ¥{selectedClaim.repair.cost}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-xs text-dark-400 uppercase tracking-wider">处理说明</span>
+                      <p className="text-dark-200 mt-1 bg-dark-800/50 rounded-lg p-3 text-sm">
+                        {selectedClaim.repair.description}
+                      </p>
+                    </div>
+
+                    {selectedClaim.repair.parts && selectedClaim.repair.parts.length > 0 && (
+                      <div>
+                        <span className="text-xs text-dark-400 uppercase tracking-wider flex items-center gap-1">
+                          <Package className="w-3 h-3" /> 配件明细
+                        </span>
+                        <div className="mt-2 bg-dark-800/50 rounded-lg overflow-hidden">
+                          {selectedClaim.repair.parts.map((part, idx) => (
+                            <div
+                              key={idx}
+                              className="flex justify-between px-3 py-2 text-sm border-b border-dark-700 last:border-b-0"
+                            >
+                              <span className="text-dark-200">{part.name}</span>
+                              <span className="text-warning-400">¥{part.cost}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-xs text-dark-400">处理技师</span>
+                        <p className="text-dark-200 mt-1">{selectedClaim.repair.technician}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-dark-400">完成时间</span>
+                        <p className="text-dark-200 mt-1">{selectedClaim.repair.completeDate}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-dark-800/50 rounded-lg p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {selectedClaim.repair.customerSigned ? (
+                          <CheckCircle className="w-5 h-5 text-success-400" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-dark-500" />
+                        )}
+                        <span className="text-dark-200">客户签收</span>
+                      </div>
+                      {selectedClaim.repair.customerSigned && selectedClaim.repair.signDate && (
+                        <span className="text-sm text-dark-400">
+                          {dayjs(selectedClaim.repair.signDate).format('YYYY-MM-DD HH:mm')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedClaim.handler && (
+                <div className="text-sm text-dark-400 flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  处理人：<span className="text-dark-200">{selectedClaim.handler}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-dark-800 px-6 py-4 border-t border-dark-700">
+              <button
+                onClick={() => setShowClaimDetail(false)}
+                className="w-full btn-primary py-3"
+              >
+                关闭
+              </button>
             </div>
           </div>
         </div>

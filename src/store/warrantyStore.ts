@@ -92,6 +92,18 @@ interface WarrantyState {
   searchClaims: (params: QueryParams) => Claim[];
   getExpiringWarranties: (days: number) => Warranty[];
   getBlacklistByPhone: (phone: string) => BlacklistItem | undefined;
+  getClosedLoopStats: (startDate?: string, endDate?: string) => {
+    storeId: string;
+    storeName: string;
+    warrantyCount: number;
+    claimCount: number;
+    repairCompletedCount: number;
+    disputeCount: number;
+    blacklistHit: number;
+    totalRepairCost: number;
+    claimRate: number;
+    repairRate: number;
+  }[];
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -503,5 +515,55 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
   getBlacklistByPhone: (phone) => {
     const { blacklist } = get();
     return blacklist.find((b) => b.phone === phone);
+  },
+
+  getClosedLoopStats: (startDate?: string, endDate?: string) => {
+    const { warranties, claims, repairs, disputes, blacklist, stores } = get();
+    const start = startDate ? dayjs(startDate) : null;
+    const end = endDate ? dayjs(endDate).endOf('day') : null;
+
+    const isInRange = (dateStr: string) => {
+      if (!start && !end) return true;
+      const d = dayjs(dateStr);
+      if (start && d.isBefore(start)) return false;
+      if (end && d.isAfter(end)) return false;
+      return true;
+    };
+
+    const filteredWarranties = warranties.filter((w) => isInRange(w.issueDate));
+    const filteredClaims = claims.filter((c) => isInRange(c.submitDate));
+    const filteredRepairs = repairs.filter((r) => isInRange(r.completeDate));
+    const filteredDisputes = disputes.filter((d) => isInRange(d.submitDate));
+    const blacklistPhones = new Set(blacklist.map((b) => b.phone));
+
+    return stores.map((store) => {
+      const storeWarranties = filteredWarranties.filter((w) => w.storeId === store.id);
+      const storeClaims = filteredClaims.filter((c) => c.storeId === store.id);
+      const storeRepairIds = new Set(filteredRepairs.map((r) => r.claimId));
+      const storeCompletedRepairs = storeClaims.filter((c) => storeRepairIds.has(c.id));
+      const storeDisputes = filteredDisputes.filter((d) => {
+        const claim = claims.find((c) => c.id === d.claimId);
+        return claim?.storeId === store.id;
+      });
+      const blacklistHit = storeWarranties.filter((w) => blacklistPhones.has(w.phone)).length;
+
+      const totalRepairCost = storeCompletedRepairs.reduce((sum, c) => {
+        const repair = repairs.find((r) => r.claimId === c.id);
+        return sum + (repair?.cost || 0);
+      }, 0);
+
+      return {
+        storeId: store.id,
+        storeName: store.name,
+        warrantyCount: storeWarranties.length,
+        claimCount: storeClaims.length,
+        repairCompletedCount: storeCompletedRepairs.length,
+        disputeCount: storeDisputes.length,
+        blacklistHit,
+        totalRepairCost,
+        claimRate: storeWarranties.length > 0 ? storeClaims.length / storeWarranties.length : 0,
+        repairRate: storeClaims.length > 0 ? storeCompletedRepairs.length / storeClaims.length : 0,
+      };
+    });
   },
 }));

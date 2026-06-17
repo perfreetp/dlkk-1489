@@ -18,6 +18,11 @@ import {
   Clock,
   Send,
   CalendarRange,
+  Building,
+  AlertOctagon,
+  Wrench,
+  Target,
+  Repeat,
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import {
@@ -53,7 +58,7 @@ const TIME_OPTIONS: FormOption[] = [
 ];
 
 export default function Stats() {
-  const { getStats, getExpiringWarranties, visits, warranties } = useWarrantyStore();
+  const { getStats, getExpiringWarranties, visits, warranties, getClosedLoopStats } = useWarrantyStore();
   const [timeRange, setTimeRange] = useState('month');
   const [startDate, setStartDate] = useState(dayjs().startOf('month').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -61,6 +66,7 @@ export default function Stats() {
   const [showCustom, setShowCustom] = useState(false);
 
   const stats = useMemo(() => getStats(), [getStats]);
+  const closedLoopData = useMemo(() => getClosedLoopStats(startDate, endDate), [getClosedLoopStats, startDate, endDate]);
 
   const expiringWarranties = useMemo(() => {
     const expiring = getExpiringWarranties(30);
@@ -406,6 +412,188 @@ export default function Stats() {
               <Bar dataKey="cost" name="返修成本" fill="url(#colorCost)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="card p-6 mb-6 card-hover">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Repeat className="w-5 h-5 text-primary-400" />
+            售后闭环看板
+            <span className="text-sm font-normal text-dark-400 ml-2">
+              {startDate} ~ {endDate}
+            </span>
+          </h3>
+          <div className="flex items-center gap-4 text-sm text-dark-400">
+            <span className="flex items-center gap-1">
+              <Shield className="w-4 h-4 text-primary-400" /> 发卡
+            </span>
+            <span className="flex items-center gap-1">
+              <Target className="w-4 h-4 text-warning-400" /> 核销
+            </span>
+            <span className="flex items-center gap-1">
+              <Wrench className="w-4 h-4 text-success-400" /> 返修完成
+            </span>
+            <span className="flex items-center gap-1">
+              <AlertTriangle className="w-4 h-4 text-danger-400" /> 争议
+            </span>
+            <span className="flex items-center gap-1">
+              <AlertOctagon className="w-4 h-4 text-danger-400" /> 黑名单命中
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-dark-600">
+                <th className="text-left py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  门店
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  发卡量
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  核销量
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  核销率
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  返修完成
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  返修率
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  争议量
+                </th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  黑名单命中
+                </th>
+                <th className="text-right py-3 px-3 text-xs font-semibold text-dark-300 uppercase">
+                  返修总成本
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {closedLoopData.map((store, index) => (
+                <tr
+                  key={store.storeId}
+                  className="border-b border-dark-700 hover:bg-dark-700/30 transition-colors"
+                >
+                  <td className="py-4 px-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary-500/20 flex items-center justify-center text-sm font-bold text-primary-400">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-white">{store.storeName}</p>
+                        <p className="text-xs text-dark-400">{store.storeId}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    <span className="text-white font-semibold">{store.warrantyCount}</span>
+                    <span className="text-dark-400 text-sm"> 张</span>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    <span className="text-warning-400 font-semibold">{store.claimCount}</span>
+                    <span className="text-dark-400 text-sm"> 次</span>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    <div className="inline-flex items-center gap-2">
+                      <div className="w-16 h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-warning-500 rounded-full"
+                          style={{ width: `${Math.min(100, store.claimRate * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-dark-300 text-sm">
+                        {(store.claimRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    <span className="text-success-400 font-semibold">{store.repairCompletedCount}</span>
+                    <span className="text-dark-400 text-sm"> 次</span>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    <div className="inline-flex items-center gap-2">
+                      <div className="w-16 h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-success-500 rounded-full"
+                          style={{ width: `${Math.min(100, store.repairRate * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-dark-300 text-sm">
+                        {(store.repairRate * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    <span className={store.disputeCount > 0 ? 'text-danger-400 font-semibold' : 'text-dark-400'}>
+                      {store.disputeCount}
+                    </span>
+                  </td>
+                  <td className="py-4 px-3 text-center">
+                    {store.blacklistHit > 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-danger-500/20 text-danger-400 text-xs font-medium">
+                        <AlertOctagon className="w-3 h-3" />
+                        {store.blacklistHit}
+                      </span>
+                    ) : (
+                      <span className="text-dark-500">-</span>
+                    )}
+                  </td>
+                  <td className="py-4 px-3 text-right">
+                    <span className="text-white font-semibold">
+                      ¥{store.totalRepairCost.toLocaleString()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6 pt-6 border-t border-dark-700">
+          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-primary-400">
+              {closedLoopData.reduce((sum, s) => sum + s.warrantyCount, 0)}
+            </p>
+            <p className="text-sm text-dark-400 mt-1">总发卡量</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-warning-400">
+              {closedLoopData.reduce((sum, s) => sum + s.claimCount, 0)}
+            </p>
+            <p className="text-sm text-dark-400 mt-1">总核销量</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-success-400">
+              {closedLoopData.reduce((sum, s) => sum + s.repairCompletedCount, 0)}
+            </p>
+            <p className="text-sm text-dark-400 mt-1">总返修完成</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-danger-400">
+              {closedLoopData.reduce((sum, s) => sum + s.disputeCount, 0)}
+            </p>
+            <p className="text-sm text-dark-400 mt-1">总争议量</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-danger-400">
+              {closedLoopData.reduce((sum, s) => sum + s.blacklistHit, 0)}
+            </p>
+            <p className="text-sm text-dark-400 mt-1">黑名单命中</p>
+          </div>
+          <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+            <p className="text-2xl font-bold text-warning-400">
+              ¥{closedLoopData.reduce((sum, s) => sum + s.totalRepairCost, 0).toLocaleString()}
+            </p>
+            <p className="text-sm text-dark-400 mt-1">总返修成本</p>
+          </div>
         </div>
       </div>
 

@@ -130,10 +130,12 @@ export interface DisputeRecord {
   phone: string;
   reason: string;
   submitDate: string;
-  status: 'pending' | 'resolved_store' | 'resolved_customer' | 'resolved_manufacturer';
+  status: 'pending' | 'resolved_store' | 'resolved_customer' | 'resolved_manufacturer' | 'rejected' | 'escalated';
   liability?: 'store' | 'customer' | 'manufacturer';
   handler?: string;
+  handleDate?: string;
   resolution?: string;
+  notes?: string;
   originalWorkOrder: {
     repairContent: string;
     technician: string;

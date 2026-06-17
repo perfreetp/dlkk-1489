@@ -116,27 +116,49 @@ export default function Audit() {
       manufacturer: 'resolved_manufacturer',
     };
     const resolutionMap: Record<string, string> = {
-      store: '承担返修成本，影响门店绩效',
-      customer: '维持拒保决定',
-      manufacturer: '上报厂商处理',
+      store: '门店责任：承担返修成本，影响门店绩效',
+      customer: '客户责任：维持拒保决定',
+      manufacturer: '厂商责任：上报厂商处理',
     };
     updateDispute(selectedDispute.id, {
       status: statusMap[liability],
       liability: liability as DisputeRecord['liability'],
       resolution: resolutionMap[liability],
       handler: '当前审核员',
+      handleDate: dayjs().format('YYYY-MM-DD HH:mm'),
+      notes: auditNotes || undefined,
     });
     handleCloseDrawer();
-    alert('审核通过');
+    alert('审核通过，已记录处理结果');
   };
 
   const handleReject = () => {
     if (!selectedDispute) return;
+    if (!auditNotes.trim()) {
+      alert('请填写驳回原因');
+      return;
+    }
+    updateDispute(selectedDispute.id, {
+      status: 'rejected',
+      handler: '当前审核员',
+      handleDate: dayjs().format('YYYY-MM-DD HH:mm'),
+      resolution: '驳回：需补充材料后重新提交',
+      notes: auditNotes,
+    });
+    handleCloseDrawer();
     alert('已驳回，需要补充材料');
   };
 
   const handleEscalate = () => {
     if (!selectedDispute) return;
+    updateDispute(selectedDispute.id, {
+      status: 'escalated',
+      handler: '当前审核员',
+      handleDate: dayjs().format('YYYY-MM-DD HH:mm'),
+      resolution: '升级：已提交至主管处理',
+      notes: auditNotes || undefined,
+    });
+    handleCloseDrawer();
     alert('已升级至主管处理');
   };
 
@@ -273,8 +295,8 @@ export default function Audit() {
     ...disputeColumns.filter(c => c.key !== 'action'),
     {
       key: 'liability',
-      title: '责任判定',
-      width: '100px',
+      title: '处理结果',
+      width: '120px',
       render: (row: DisputeRecord) => (
         <StatusBadge status={row.status} />
       ),
@@ -288,11 +310,29 @@ export default function Audit() {
       ),
     },
     {
+      key: 'handleDate',
+      title: '处理时间',
+      width: '140px',
+      render: (row: DisputeRecord) => (
+        <span className="text-dark-400 text-sm">{row.handleDate || '-'}</span>
+      ),
+    },
+    {
       key: 'resolution',
-      title: '处理结果',
-      width: '180px',
+      title: '处理说明',
+      width: '200px',
       render: (row: DisputeRecord) => (
         <span className="text-dark-300 text-sm">{row.resolution || '-'}</span>
+      ),
+    },
+    {
+      key: 'notes',
+      title: '备注',
+      width: '160px',
+      render: (row: DisputeRecord) => (
+        <span className="text-dark-400 text-sm line-clamp-1" title={row.notes}>
+          {row.notes || '-'}
+        </span>
       ),
     },
   ];
