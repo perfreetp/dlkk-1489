@@ -23,6 +23,13 @@ import {
   Wrench,
   Target,
   Repeat,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  X,
+  ArrowRight,
+  ThumbsUp,
+  Handshake,
 } from 'lucide-react';
 import dayjs from 'dayjs';
 import {
@@ -64,6 +71,8 @@ export default function Stats() {
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [showCustom, setShowCustom] = useState(false);
+  const [expandedStoreId, setExpandedStoreId] = useState<string | null>(null);
+  const [funnelDetailTab, setFunnelDetailTab] = useState<'warranties' | 'claims' | 'repairs' | 'visits'>('warranties');
 
   const stats = useMemo(() => getStats(), [getStats]);
   const closedLoopData = useMemo(() => getClosedLoopStats(startDate, endDate), [getClosedLoopStats, startDate, endDate]);
@@ -594,6 +603,336 @@ export default function Stats() {
             </p>
             <p className="text-sm text-dark-400 mt-1">总返修成本</p>
           </div>
+        </div>
+      </div>
+
+      <div className="card p-6 mb-6 card-hover">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Target className="w-5 h-5 text-primary-400" />
+            门店售后漏斗
+            <span className="text-sm font-normal text-dark-400 ml-2">
+              {startDate} ~ {endDate}
+            </span>
+          </h3>
+          <div className="flex items-center gap-4 text-sm text-dark-400">
+            <span className="flex items-center gap-1">
+              <Shield className="w-4 h-4 text-primary-400" /> 发卡
+            </span>
+            <ArrowRight className="w-4 h-4 text-dark-600" />
+            <span className="flex items-center gap-1">
+              <FileText className="w-4 h-4 text-warning-400" /> 核销申请
+            </span>
+            <ArrowRight className="w-4 h-4 text-dark-600" />
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-4 h-4 text-success-400" /> 检测通过
+            </span>
+            <ArrowRight className="w-4 h-4 text-dark-600" />
+            <span className="flex items-center gap-1">
+              <Wrench className="w-4 h-4 text-primary-400" /> 返修完成
+            </span>
+            <ArrowRight className="w-4 h-4 text-dark-600" />
+            <span className="flex items-center gap-1">
+              <Handshake className="w-4 h-4 text-success-400" /> 客户签收
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {closedLoopData.map((store, storeIndex) => {
+            const isExpanded = expandedStoreId === store.storeId;
+            const f = store.funnel;
+            const maxWidth = Math.max(f.issue, 1);
+            return (
+              <div key={store.storeId} className="border border-dark-700 rounded-xl overflow-hidden">
+                <div
+                  className="p-4 cursor-pointer hover:bg-dark-700/30 transition-colors"
+                  onClick={() => setExpandedStoreId(isExpanded ? null : store.storeId)}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary-500/20 flex items-center justify-center text-sm font-bold text-primary-400">
+                      {storeIndex + 1}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-white">{store.storeName}</p>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronDown className="w-5 h-5 text-dark-400" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-dark-400" />
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 h-12">
+                    <div
+                      className="h-full bg-primary-500/80 rounded-lg flex items-center justify-center px-3 text-white text-sm font-medium transition-all"
+                      style={{ width: `${Math.max(8, (f.issue / maxWidth) * 100)}%` }}
+                    >
+                      <div className="text-center">
+                        <p className="font-bold">{f.issue}</p>
+                        <p className="text-xs opacity-80">发卡</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-dark-600 flex-shrink-0" />
+                    <div
+                      className="h-full bg-warning-500/80 rounded-lg flex items-center justify-center px-3 text-white text-sm font-medium transition-all"
+                      style={{ width: `${Math.max(8, (f.claim / maxWidth) * 100)}%` }}
+                    >
+                      <div className="text-center">
+                        <p className="font-bold">{f.claim}</p>
+                        <p className="text-xs opacity-80">申请 {(f.claimRate * 100).toFixed(0)}%</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-dark-600 flex-shrink-0" />
+                    <div
+                      className="h-full bg-success-500/80 rounded-lg flex items-center justify-center px-3 text-white text-sm font-medium transition-all"
+                      style={{ width: `${Math.max(8, (f.approved / maxWidth) * 100)}%` }}
+                    >
+                      <div className="text-center">
+                        <p className="font-bold">{f.approved}</p>
+                        <p className="text-xs opacity-80">通过 {(f.approveRate * 100).toFixed(0)}%</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-dark-600 flex-shrink-0" />
+                    <div
+                      className="h-full bg-primary-500/80 rounded-lg flex items-center justify-center px-3 text-white text-sm font-medium transition-all"
+                      style={{ width: `${Math.max(8, (f.repair / maxWidth) * 100)}%` }}
+                    >
+                      <div className="text-center">
+                        <p className="font-bold">{f.repair}</p>
+                        <p className="text-xs opacity-80">返修 {(f.repairRate * 100).toFixed(0)}%</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-dark-600 flex-shrink-0" />
+                    <div
+                      className="h-full bg-success-500/80 rounded-lg flex items-center justify-center px-3 text-white text-sm font-medium transition-all"
+                      style={{ width: `${Math.max(8, (f.signed / maxWidth) * 100)}%` }}
+                    >
+                      <div className="text-center">
+                        <p className="font-bold">{f.signed}</p>
+                        <p className="text-xs opacity-80">签收 {(f.signRate * 100).toFixed(0)}%</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="border-t border-dark-700 bg-dark-800/50">
+                    <div className="flex gap-2 p-3 border-b border-dark-700">
+                      {(['warranties', 'claims', 'repairs', 'visits'] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            funnelDetailTab === tab
+                              ? 'bg-primary-500 text-white'
+                              : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFunnelDetailTab(tab);
+                          }}
+                        >
+                          {tab === 'warranties' && '发卡明细'}
+                          {tab === 'claims' && '申请明细'}
+                          {tab === 'repairs' && '返修明细'}
+                          {tab === 'visits' && '回访明细'}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto">
+                      {funnelDetailTab === 'warranties' && (
+                        <table className="w-full">
+                          <thead className="bg-dark-700/50 sticky top-0">
+                            <tr>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">质保卡号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">客户</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">机型</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">发卡日期</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">到期日期</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">状态</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {store.details.warranties.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="py-8 text-center text-dark-500">
+                                  暂无数据
+                                </td>
+                              </tr>
+                            ) : (
+                              store.details.warranties.map((w) => (
+                                <tr key={w.id} className="border-t border-dark-700 hover:bg-dark-700/20">
+                                  <td className="py-2 px-3 text-sm text-primary-400 font-mono">{w.cardNo}</td>
+                                  <td className="py-2 px-3 text-sm text-white">{w.customerName}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{w.phoneModel}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{w.issueDate}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{w.expireDate}</td>
+                                  <td className="py-2 px-3">
+                                    <span className={`text-xs px-2 py-1 rounded-md ${
+                                      w.status === 'active' ? 'bg-success-500/20 text-success-400' : 'bg-dark-600 text-dark-400'
+                                    }`}>
+                                      {w.status === 'active' ? '有效' : '已过期'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+
+                      {funnelDetailTab === 'claims' && (
+                        <table className="w-full">
+                          <thead className="bg-dark-700/50 sticky top-0">
+                            <tr>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">申请单号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">质保卡号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">客户</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">故障描述</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">申请时间</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">是否保修</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">状态</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {store.details.claims.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="py-8 text-center text-dark-500">
+                                  暂无数据
+                                </td>
+                              </tr>
+                            ) : (
+                              store.details.claims.map((c) => (
+                                <tr key={c.id} className="border-t border-dark-700 hover:bg-dark-700/20">
+                                  <td className="py-2 px-3 text-sm text-warning-400 font-mono">{c.id}</td>
+                                  <td className="py-2 px-3 text-sm text-primary-400 font-mono">{c.cardNo}</td>
+                                  <td className="py-2 px-3 text-sm text-white">{c.customerName}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300 max-w-[200px] truncate">{c.faultDescription}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{c.submitDate}</td>
+                                  <td className="py-2 px-3">
+                                    {c.isCovered === null ? (
+                                      <span className="text-dark-500 text-xs">-</span>
+                                    ) : c.isCovered ? (
+                                      <span className="text-xs px-2 py-1 rounded-md bg-success-500/20 text-success-400">是</span>
+                                    ) : (
+                                      <span className="text-xs px-2 py-1 rounded-md bg-danger-500/20 text-danger-400">否</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <span className={`text-xs px-2 py-1 rounded-md ${
+                                      c.status === 'approved' ? 'bg-success-500/20 text-success-400' :
+                                      c.status === 'rejected' ? 'bg-danger-500/20 text-danger-400' :
+                                      'bg-warning-500/20 text-warning-400'
+                                    }`}>
+                                      {c.status === 'approved' ? '已通过' : c.status === 'rejected' ? '已拒保' : '待审核'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+
+                      {funnelDetailTab === 'repairs' && (
+                        <table className="w-full">
+                          <thead className="bg-dark-700/50 sticky top-0">
+                            <tr>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">返修单号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">质保卡号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">客户</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">处理方案</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">费用</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">完成时间</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">签收状态</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {store.details.repairs.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="py-8 text-center text-dark-500">
+                                  暂无数据
+                                </td>
+                              </tr>
+                            ) : (
+                              store.details.repairs.map((r) => (
+                                <tr key={r.id} className="border-t border-dark-700 hover:bg-dark-700/20">
+                                  <td className="py-2 px-3 text-sm text-primary-400 font-mono">{r.id}</td>
+                                  <td className="py-2 px-3 text-sm text-warning-400 font-mono">{r.cardNo}</td>
+                                  <td className="py-2 px-3 text-sm text-white">{r.customerName}</td>
+                                  <td className="py-2 px-3">
+                                    <span className={`text-xs px-2 py-1 rounded-md ${
+                                      r.solutionType === 'free_repair' ? 'bg-success-500/20 text-success-400' :
+                                      r.solutionType === 'discount_exchange' ? 'bg-warning-500/20 text-warning-400' :
+                                      'bg-danger-500/20 text-danger-400'
+                                    }`}>
+                                      {r.solutionType === 'free_repair' ? '免费维修' :
+                                       r.solutionType === 'discount_exchange' ? '折价更换' : '拒保'}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 text-sm text-white font-medium">¥{r.cost.toLocaleString()}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{r.completeDate}</td>
+                                  <td className="py-2 px-3">
+                                    {r.customerSigned ? (
+                                      <span className="text-xs px-2 py-1 rounded-md bg-success-500/20 text-success-400">
+                                        已签收 {r.signDate}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs px-2 py-1 rounded-md bg-warning-500/20 text-warning-400">
+                                        待签收
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+
+                      {funnelDetailTab === 'visits' && (
+                        <table className="w-full">
+                          <thead className="bg-dark-700/50 sticky top-0">
+                            <tr>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">回访单号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">质保卡号</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">客户</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">回访内容</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">满意度</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">回访时间</th>
+                              <th className="text-left py-2 px-3 text-xs font-semibold text-dark-300">回访人</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {store.details.visits.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="py-8 text-center text-dark-500">
+                                  暂无数据
+                                </td>
+                              </tr>
+                            ) : (
+                              store.details.visits.map((v) => (
+                                <tr key={v.id} className="border-t border-dark-700 hover:bg-dark-700/20">
+                                  <td className="py-2 px-3 text-sm text-primary-400 font-mono">{v.id}</td>
+                                  <td className="py-2 px-3 text-sm text-warning-400 font-mono">{v.cardNo}</td>
+                                  <td className="py-2 px-3 text-sm text-white">{v.customerName}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300 max-w-[200px] truncate">{v.content}</td>
+                                  <td className="py-2 px-3">{renderStars(v.satisfaction)}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{v.visitDate}</td>
+                                  <td className="py-2 px-3 text-sm text-dark-300">{v.operator}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

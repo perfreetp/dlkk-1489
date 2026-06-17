@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Phone, CreditCard, ShieldAlert, CheckCircle, Clock, XCircle, Send, History, FileText, AlertTriangle, Shield, X, Eye, Wrench, DollarSign, User, Package } from 'lucide-react';
+import { Search, Phone, CreditCard, ShieldAlert, CheckCircle, Clock, XCircle, Send, History, FileText, AlertTriangle, Shield, X, Eye, Wrench, DollarSign, User, Package, MessageSquare, ThumbsUp, AlertOctagon, FileQuestion, Handshake, Star } from 'lucide-react';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/Layout';
 import { WarrantyCard, StatusBadge } from '@/components/Card';
 import { Input } from '@/components/Form';
 import { useWarrantyStore } from '@/store/warrantyStore';
-import type { Warranty, BlacklistItem, Claim } from '@/types';
+import type { Warranty, BlacklistItem, Claim, DisputeRecord, VisitRecord } from '@/types';
 import { cn } from '@/lib/utils';
 
 type SearchType = 'phone' | 'card';
 
 export default function Query() {
   const navigate = useNavigate();
-  const { searchWarranties, getBlacklistByPhone } = useWarrantyStore();
+  const { searchWarranties, getBlacklistByPhone, getDisputesByClaimId, getVisitsByWarrantyId } = useWarrantyStore();
 
   const [searchType, setSearchType] = useState<SearchType>('phone');
   const [keyword, setKeyword] = useState('');
@@ -27,6 +27,8 @@ export default function Query() {
   const [selectedWarranty, setSelectedWarranty] = useState<Warranty | null>(null);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [showClaimDetail, setShowClaimDetail] = useState(false);
+  const [claimDisputes, setClaimDisputes] = useState<DisputeRecord[]>([]);
+  const [warrantyVisits, setWarrantyVisits] = useState<VisitRecord[]>([]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
@@ -369,6 +371,8 @@ export default function Query() {
                         className="relative pl-12 cursor-pointer"
                         onClick={() => {
                           setSelectedClaim(claim);
+                          setClaimDisputes(getDisputesByClaimId(claim.id));
+                          setWarrantyVisits(getVisitsByWarrantyId(selectedWarranty.id));
                           setShowClaimDetail(true);
                         }}
                       >
@@ -727,6 +731,128 @@ export default function Query() {
                 <div className="text-sm text-dark-400 flex items-center gap-2">
                   <User className="w-4 h-4" />
                   处理人：<span className="text-dark-200">{selectedClaim.handler}</span>
+                </div>
+              )}
+
+              {claimDisputes.length > 0 && (
+                <div className="border-t border-dark-700 pt-5">
+                  <h4 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                    <AlertOctagon className="w-5 h-5 text-danger-400" />
+                    争议处理记录
+                  </h4>
+                  <div className="space-y-3">
+                    {claimDisputes.map((dispute) => (
+                      <div key={dispute.id} className="bg-dark-800/50 rounded-xl p-4 border border-dark-700">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-1 rounded-md ${
+                                dispute.status.startsWith('resolved') ? 'bg-success-500/20 text-success-400' :
+                                dispute.status === 'rejected' ? 'bg-danger-500/20 text-danger-400' :
+                                dispute.status === 'escalated' ? 'bg-warning-500/20 text-warning-400' :
+                                'bg-primary-500/20 text-primary-400'
+                              }`}>
+                                {dispute.status === 'pending' ? '待处理' :
+                                 dispute.status === 'resolved_store' ? '门店责任' :
+                                 dispute.status === 'resolved_customer' ? '客户责任' :
+                                 dispute.status === 'resolved_manufacturer' ? '厂商责任' :
+                                 dispute.status === 'rejected' ? '已驳回' : '已升级'}
+                              </span>
+                              <span className="text-xs text-dark-400">争议单号：{dispute.id}</span>
+                            </div>
+                            <p className="text-sm text-white mt-2">{dispute.reason}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4 text-sm mb-3">
+                          <div>
+                            <span className="text-dark-400 text-xs">提交时间</span>
+                            <p className="text-dark-200 mt-1">{dispute.submitDate}</p>
+                          </div>
+                          {dispute.handler && (
+                            <div>
+                              <span className="text-dark-400 text-xs">处理人</span>
+                              <p className="text-dark-200 mt-1">{dispute.handler}</p>
+                            </div>
+                          )}
+                          {dispute.handleDate && (
+                            <div>
+                              <span className="text-dark-400 text-xs">处理时间</span>
+                              <p className="text-dark-200 mt-1">{dispute.handleDate}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {dispute.liability && (
+                          <div className="mb-2">
+                            <span className="text-xs text-dark-400">责任方</span>
+                            <p className="text-sm text-dark-200 mt-1">
+                              {dispute.liability === 'store' ? '门店' :
+                               dispute.liability === 'customer' ? '客户' : '厂商'}
+                            </p>
+                          </div>
+                        )}
+
+                        {dispute.resolution && (
+                          <div className="mb-2">
+                            <span className="text-xs text-dark-400">处理说明</span>
+                            <p className="text-sm text-dark-200 mt-1">{dispute.resolution}</p>
+                          </div>
+                        )}
+
+                        {dispute.notes && (
+                          <div>
+                            <span className="text-xs text-dark-400">备注</span>
+                            <p className="text-sm text-dark-300 mt-1">{dispute.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {warrantyVisits.length > 0 && (
+                <div className="border-t border-dark-700 pt-5">
+                  <h4 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-primary-400" />
+                    售后回访记录
+                  </h4>
+                  <div className="space-y-3">
+                    {warrantyVisits.map((visit) => (
+                      <div key={visit.id} className="bg-dark-800/50 rounded-xl p-4 border border-dark-700">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
+                              <ThumbsUp className="w-4 h-4 text-primary-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">{visit.operator}</p>
+                              <p className="text-xs text-dark-400">{visit.visitDate}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-4 h-4 ${i < visit.satisfaction ? 'text-warning-400 fill-warning-400' : 'text-dark-600'}`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mb-2">
+                          <span className="text-xs text-dark-400">回访内容</span>
+                          <p className="text-sm text-dark-200 mt-1">{visit.content}</p>
+                        </div>
+                        {visit.followUp && (
+                          <div>
+                            <span className="text-xs text-dark-400">后续跟进</span>
+                            <p className="text-sm text-dark-300 mt-1">{visit.followUp}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

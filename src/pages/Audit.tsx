@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AlertTriangle, UserPlus, X, ChevronRight, Check, XCircle, ArrowUp, Eye, Trash2, Edit3, FileText, Camera, User, Clock, Building } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { AlertTriangle, UserPlus, X, ChevronRight, Check, XCircle, ArrowUp, Eye, Trash2, Edit3, FileText, Camera, User, Clock, Building, Download, Filter, XCircle as XIcon, Calendar } from 'lucide-react';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/Layout';
 import { StatusBadge } from '@/components/Card';
@@ -45,6 +45,15 @@ const riskLevelOptions: FormOption[] = [
   { value: 'low', label: '低风险' },
 ];
 
+const disputeStatusOptions: FormOption[] = [
+  { value: '', label: '全部' },
+  { value: 'resolved_store', label: '门店责任' },
+  { value: 'resolved_customer', label: '客户责任' },
+  { value: 'resolved_manufacturer', label: '厂商责任' },
+  { value: 'rejected', label: '已驳回' },
+  { value: 'escalated', label: '已升级' },
+];
+
 const tabLabels: Record<TabType, string> = {
   pending: '争议待处理',
   blacklist: '黑名单管理',
@@ -77,9 +86,71 @@ export default function Audit() {
   });
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState('');
+  const [historyFilters, setHistoryFilters] = useState({
+    status: '',
+    handler: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [showHistoryFilters, setShowHistoryFilters] = useState(false);
 
-  const pendingDisputes = disputes.filter(d => d.status === 'pending');
-  const resolvedDisputes = disputes.filter(d => d.status !== 'pending');
+  const pendingDisputes = disputes.filter((d) => d.status === 'pending');
+  const historyDisputes = disputes.filter((d) => d.status !== 'pending');
+
+  const allHandlers = useMemo(() => {
+    const handlers = new Set<string>();
+    historyDisputes.forEach((d) => {
+      if (d.handler) handlers.add(d.handler);
+    });
+    return Array.from(handlers).map((h) => ({ value: h, label: h }));
+  }, [historyDisputes]);
+
+  const filteredHistoryDisputes = useMemo(() => {
+    return historyDisputes.filter((d) => {
+      if (historyFilters.status && d.status !== historyFilters.status) return false;
+      if (historyFilters.handler && d.handler !== historyFilters.handler) return false;
+      if (historyFilters.startDate && d.handleDate) {
+        if (dayjs(d.handleDate).isBefore(dayjs(historyFilters.startDate))) return false;
+      }
+      if (historyFilters.endDate && d.handleDate) {
+        if (dayjs(d.handleDate).isAfter(dayjs(historyFilters.endDate).endOf('day'))) return false;
+      }
+      return true;
+    });
+  }, [historyDisputes, historyFilters]);
+
+  const handleExportHistory = () => {
+    const headers = ['争议单号', '质保卡号', '客户姓名', '联系电话', '争议原因', '处理结果', '责任方', '处理人', '处理时间', '处理说明', '备注'];
+    const rows = filteredHistoryDisputes.map((d) => [
+      d.id,
+      d.cardNo,
+      d.customerName,
+      d.phone,
+      d.reason,
+      d.status === 'resolved_store' ? '门店责任' :
+      d.status === 'resolved_customer' ? '客户责任' :
+      d.status === 'resolved_manufacturer' ? '厂商责任' :
+      d.status === 'rejected' ? '已驳回' : '已升级',
+      d.liability === 'store' ? '门店' : d.liability === 'customer' ? '客户' : d.liability === 'manufacturer' ? '厂商' : '',
+      d.handler || '',
+      d.handleDate || '',
+      d.resolution || '',
+      d.notes || '',
+    ]);
+    
+    const csvContent = [headers, ...rows].map((row) => 
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `争议处理记录_${dayjs().format('YYYYMMDD_HHmmss')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    alert('已导出 ' + filteredHistoryDisputes.length + ' 条记录');
+  };
 
   const filteredPendingDisputes = pendingDisputes.filter(dispute => {
     if (filters.storeId && stores.find(s => s.id === filters.storeId)?.name !== dispute.claimId.slice(0, 4)) {
@@ -569,11 +640,84 @@ export default function Audit() {
       )}
 
       {activeTab === 'history' && (
-        <DataTable
-          columns={historyColumns}
-          data={resolvedDisputes}
-          emptyText="暂无已处理记录"
-        />
+        <div>
+          <div className="card p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <button
+                  className={`btn-sm ${showHistoryFilters ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setShowHistoryFilters(!showHistoryFilters)}
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  筛选
+                </button>
+                {Object.values(historyFilters).some(v => v) && (
+                  <button
+                    className="btn-sm btn-ghost text-dark-400 hover:text-white"
+                    onClick={() => setHistoryFilters({ status: '', handler: '', startDate: '', endDate: '' })}
+                  >
+                    <XIcon className="w-4 h-4 mr-2" />
+                    清除筛选
+                  </button>
+                )}
+                <span className="text-sm text-dark-400">
+                  共 {filteredHistoryDisputes.length} 条记录
+                </span>
+              </div>
+              <button className="btn-sm btn-success" onClick={handleExportHistory}>
+                <Download className="w-4 h-4 mr-2" />
+                导出 CSV
+              </button>
+            </div>
+
+            {showHistoryFilters && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-dark-700">
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-2">处理结果</label>
+                  <Select
+                    value={historyFilters.status}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, status: e.target.value })}
+                    options={disputeStatusOptions}
+                    placeholder="全部"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-2">处理人</label>
+                  <Select
+                    value={historyFilters.handler}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, handler: e.target.value })}
+                    options={[{ value: '', label: '全部' }, ...allHandlers]}
+                    placeholder="全部"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-2">开始时间</label>
+                  <Input
+                    type="date"
+                    value={historyFilters.startDate}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, startDate: e.target.value })}
+                    placeholder="选择日期"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-dark-400 mb-2">结束时间</label>
+                  <Input
+                    type="date"
+                    value={historyFilters.endDate}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, endDate: e.target.value })}
+                    placeholder="选择日期"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DataTable
+            columns={historyColumns}
+            data={filteredHistoryDisputes}
+            emptyText="暂无已处理记录"
+          />
+        </div>
       )}
 
       {showDetailDrawer && selectedDispute && (

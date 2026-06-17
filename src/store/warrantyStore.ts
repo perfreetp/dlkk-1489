@@ -92,6 +92,8 @@ interface WarrantyState {
   searchClaims: (params: QueryParams) => Claim[];
   getExpiringWarranties: (days: number) => Warranty[];
   getBlacklistByPhone: (phone: string) => BlacklistItem | undefined;
+  getDisputesByClaimId: (claimId: string) => DisputeRecord[];
+  getVisitsByWarrantyId: (warrantyId: string) => VisitRecord[];
   getClosedLoopStats: (startDate?: string, endDate?: string) => {
     storeId: string;
     storeName: string;
@@ -103,6 +105,58 @@ interface WarrantyState {
     totalRepairCost: number;
     claimRate: number;
     repairRate: number;
+    funnel: {
+      issue: number;
+      claim: number;
+      approved: number;
+      repair: number;
+      signed: number;
+      claimRate: number;
+      approveRate: number;
+      repairRate: number;
+      signRate: number;
+    };
+    details: {
+      warranties: Array<{
+        id: string;
+        cardNo: string;
+        customerName: string;
+        phone: string;
+        phoneModel: string;
+        issueDate: string;
+        expireDate: string;
+        status: string;
+      }>;
+      claims: Array<{
+        id: string;
+        cardNo: string;
+        customerName: string;
+        faultDescription: string;
+        submitDate: string;
+        status: string;
+        isCovered: boolean | null;
+      }>;
+      repairs: Array<{
+        id: string;
+        claimId: string;
+        cardNo: string;
+        customerName: string;
+        solutionType: string;
+        cost: number;
+        completeDate: string;
+        customerSigned: boolean;
+        signDate?: string;
+      }>;
+      visits: Array<{
+        id: string;
+        cardNo: string;
+        customerName: string;
+        content: string;
+        satisfaction: number;
+        visitDate: string;
+        operator: string;
+      }>;
+    };
   }[];
 }
 
@@ -517,8 +571,18 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
     return blacklist.find((b) => b.phone === phone);
   },
 
+  getDisputesByClaimId: (claimId) => {
+    const { disputes } = get();
+    return disputes.filter((d) => d.claimId === claimId);
+  },
+
+  getVisitsByWarrantyId: (warrantyId) => {
+    const { visits } = get();
+    return visits.filter((v) => v.warrantyId === warrantyId);
+  },
+
   getClosedLoopStats: (startDate?: string, endDate?: string) => {
-    const { warranties, claims, repairs, disputes, blacklist, stores } = get();
+    const { warranties, claims, repairs, disputes, blacklist, visits, stores } = get();
     const start = startDate ? dayjs(startDate) : null;
     const end = endDate ? dayjs(endDate).endOf('day') : null;
 
@@ -534,35 +598,102 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
     const filteredClaims = claims.filter((c) => isInRange(c.submitDate));
     const filteredRepairs = repairs.filter((r) => isInRange(r.completeDate));
     const filteredDisputes = disputes.filter((d) => isInRange(d.submitDate));
+    const filteredVisits = visits.filter((v) => isInRange(v.visitDate));
     const blacklistPhones = new Set(blacklist.map((b) => b.phone));
 
     return stores.map((store) => {
       const storeWarranties = filteredWarranties.filter((w) => w.storeId === store.id);
       const storeClaims = filteredClaims.filter((c) => c.storeId === store.id);
-      const storeRepairIds = new Set(filteredRepairs.map((r) => r.claimId));
-      const storeCompletedRepairs = storeClaims.filter((c) => storeRepairIds.has(c.id));
+      const storeApprovedClaims = storeClaims.filter((c) => c.status === 'approved');
+      const storeRepairs = filteredRepairs.filter((r) => {
+        const claim = claims.find((c) => c.id === r.claimId);
+        return claim?.storeId === store.id;
+      });
+      const storeSignedRepairs = storeRepairs.filter((r) => r.customerSigned);
+      const storeRepairIds = new Set(storeRepairs.map((r) => r.claimId));
+      const storeCompletedRepairs = claims.filter((c) => storeRepairIds.has(c.id));
       const storeDisputes = filteredDisputes.filter((d) => {
         const claim = claims.find((c) => c.id === d.claimId);
         return claim?.storeId === store.id;
       });
+      const storeVisits = filteredVisits.filter((v) => {
+        const warranty = warranties.find((w) => w.id === v.warrantyId);
+        return warranty?.storeId === store.id;
+      });
       const blacklistHit = storeWarranties.filter((w) => blacklistPhones.has(w.phone)).length;
 
-      const totalRepairCost = storeCompletedRepairs.reduce((sum, c) => {
-        const repair = repairs.find((r) => r.claimId === c.id);
-        return sum + (repair?.cost || 0);
-      }, 0);
+      const totalRepairCost = storeRepairs.reduce((sum, r) => sum + r.cost, 0);
+
+      const funnel = {
+        issue: storeWarranties.length,
+        claim: storeClaims.length,
+        approved: storeApprovedClaims.length,
+        repair: storeRepairs.length,
+        signed: storeSignedRepairs.length,
+        claimRate: storeWarranties.length > 0 ? storeClaims.length / storeWarranties.length : 0,
+        approveRate: storeClaims.length > 0 ? storeApprovedClaims.length / storeClaims.length : 0,
+        repairRate: storeApprovedClaims.length > 0 ? storeRepairs.length / storeApprovedClaims.length : 0,
+        signRate: storeRepairs.length > 0 ? storeSignedRepairs.length / storeRepairs.length : 0,
+      };
+
+      const details = {
+        warranties: storeWarranties.map((w) => ({
+          id: w.id,
+          cardNo: w.cardNo,
+          customerName: w.customerName,
+          phone: w.phone,
+          phoneModel: w.phoneModel,
+          issueDate: w.issueDate,
+          expireDate: w.expireDate,
+          status: w.status,
+        })),
+        claims: storeClaims.map((c) => ({
+          id: c.id,
+          cardNo: c.cardNo,
+          customerName: c.customerName,
+          faultDescription: c.faultDescription,
+          submitDate: c.submitDate,
+          status: c.status,
+          isCovered: c.isCovered,
+        })),
+        repairs: storeRepairs.map((r) => {
+          const claim = claims.find((c) => c.id === r.claimId);
+          return {
+            id: r.id,
+            claimId: r.claimId,
+            cardNo: claim?.cardNo || '',
+            customerName: claim?.customerName || '',
+            solutionType: r.solutionType,
+            cost: r.cost,
+            completeDate: r.completeDate,
+            customerSigned: r.customerSigned,
+            signDate: r.signDate,
+          };
+        }),
+        visits: storeVisits.map((v) => ({
+          id: v.id,
+          cardNo: v.cardNo,
+          customerName: v.customerName,
+          content: v.content,
+          satisfaction: v.satisfaction,
+          visitDate: v.visitDate,
+          operator: v.operator,
+        })),
+      };
 
       return {
         storeId: store.id,
         storeName: store.name,
         warrantyCount: storeWarranties.length,
         claimCount: storeClaims.length,
-        repairCompletedCount: storeCompletedRepairs.length,
+        repairCompletedCount: storeRepairs.length,
         disputeCount: storeDisputes.length,
         blacklistHit,
         totalRepairCost,
         claimRate: storeWarranties.length > 0 ? storeClaims.length / storeWarranties.length : 0,
-        repairRate: storeClaims.length > 0 ? storeCompletedRepairs.length / storeClaims.length : 0,
+        repairRate: storeClaims.length > 0 ? storeRepairs.length / storeClaims.length : 0,
+        funnel,
+        details,
       };
     });
   },
