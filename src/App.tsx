@@ -7,6 +7,7 @@ import Accept from "@/pages/Accept";
 import Repair from "@/pages/Repair";
 import Audit from "@/pages/Audit";
 import Stats from "@/pages/Stats";
+import Review from "@/pages/Review";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -80,6 +81,14 @@ export default function App() {
           element={
             <AppLayout>
               <Stats />
+            </AppLayout>
+          }
+        />
+        <Route
+          path="/review"
+          element={
+            <AppLayout>
+              <Review />
             </AppLayout>
           }
         />

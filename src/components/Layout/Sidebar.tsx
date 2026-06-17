@@ -9,7 +9,8 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  History
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/repair', label: '返修处理', icon: Wrench },
   { path: '/audit', label: '门店审核', icon: ShieldAlert },
   { path: '/stats', label: '质保统计', icon: BarChart3 },
+  { path: '/review', label: '客服复盘', icon: History },
 ];
 
 export default function Sidebar() {

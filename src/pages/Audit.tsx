@@ -93,6 +93,8 @@ export default function Audit() {
     endDate: '',
   });
   const [showHistoryFilters, setShowHistoryFilters] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportNotes, setExportNotes] = useState('');
 
   const pendingDisputes = disputes.filter((d) => d.status === 'pending');
   const historyDisputes = disputes.filter((d) => d.status !== 'pending');
@@ -120,6 +122,21 @@ export default function Audit() {
   }, [historyDisputes, historyFilters]);
 
   const handleExportHistory = () => {
+    setShowExportModal(true);
+  };
+
+  const confirmExport = () => {
+    const summaryLines: string[] = [];
+    summaryLines.push(`生成时间,${dayjs().format('YYYY-MM-DD HH:mm:ss')}`);
+    summaryLines.push(`导出记录数,${filteredHistoryDisputes.length}`);
+    summaryLines.push(`处理结果筛选,${historyFilters.status ? disputeStatusOptions.find(o => o.value === historyFilters.status)?.label : '全部'}`);
+    summaryLines.push(`处理人筛选,${historyFilters.handler || '全部'}`);
+    summaryLines.push(`时间范围,${historyFilters.startDate || '不限'} ~ ${historyFilters.endDate || '不限'}`);
+    if (exportNotes.trim()) {
+      summaryLines.push(`复盘备注,${exportNotes.replace(/\n/g, ' ')}`);
+    }
+    summaryLines.push('');
+
     const headers = ['争议单号', '质保卡号', '客户姓名', '联系电话', '争议原因', '处理结果', '责任方', '处理人', '处理时间', '处理说明', '备注'];
     const rows = filteredHistoryDisputes.map((d) => [
       d.id,
@@ -137,11 +154,12 @@ export default function Audit() {
       d.resolution || '',
       d.notes || '',
     ]);
-    
-    const csvContent = [headers, ...rows].map((row) => 
+
+    const summaryRows = summaryLines.map((line) => [line]);
+    const csvContent = [...summaryRows, headers, ...rows].map((row) =>
       row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
     ).join('\n');
-    
+
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -149,6 +167,9 @@ export default function Audit() {
     link.download = `争议处理记录_${dayjs().format('YYYYMMDD_HHmmss')}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+
+    setShowExportModal(false);
+    setExportNotes('');
     alert('已导出 ' + filteredHistoryDisputes.length + ' 条记录');
   };
 
@@ -982,6 +1003,85 @@ export default function Audit() {
                 className="flex-1 btn-primary"
               >
                 确认添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="px-6 py-4 border-b border-dark-700 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Download className="w-5 h-5 text-success-400" />
+                导出争议处理记录
+              </h3>
+              <button
+                onClick={() => {
+                  setShowExportModal(false);
+                  setExportNotes('');
+                }}
+                className="p-2 text-dark-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="bg-dark-900/50 rounded-xl p-4 border border-dark-700 space-y-2">
+                <h4 className="text-sm font-semibold text-white mb-2">筛选条件摘要</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-dark-400 text-xs">处理结果</span>
+                    <p className="text-white">
+                      {historyFilters.status ? disputeStatusOptions.find(o => o.value === historyFilters.status)?.label : '全部'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-dark-400 text-xs">处理人</span>
+                    <p className="text-white">{historyFilters.handler || '全部'}</p>
+                  </div>
+                  <div>
+                    <span className="text-dark-400 text-xs">时间范围</span>
+                    <p className="text-white">
+                      {historyFilters.startDate || '不限'} ~ {historyFilters.endDate || '不限'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-dark-400 text-xs">记录数</span>
+                    <p className="text-success-400 font-medium">{filteredHistoryDisputes.length} 条</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-dark-200 mb-2">
+                  复盘备注 <span className="text-dark-500 text-xs">（可选，会导出到 CSV 头部）</span>
+                </label>
+                <textarea
+                  className="w-full h-24 px-4 py-3 bg-dark-900/50 border border-dark-700 rounded-xl text-white text-sm focus:outline-none focus:border-primary-500 transition-colors resize-none"
+                  placeholder="输入本次复盘的备注说明，例如：6月门店争议复盘，重点关注电池责任认定问题..."
+                  value={exportNotes}
+                  onChange={(e) => setExportNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-dark-700 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowExportModal(false);
+                  setExportNotes('');
+                }}
+                className="flex-1 btn-secondary"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmExport}
+                className="flex-1 btn-success"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                确认导出
               </button>
             </div>
           </div>

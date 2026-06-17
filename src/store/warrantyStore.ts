@@ -94,6 +94,8 @@ interface WarrantyState {
   getBlacklistByPhone: (phone: string) => BlacklistItem | undefined;
   getDisputesByClaimId: (claimId: string) => DisputeRecord[];
   getVisitsByWarrantyId: (warrantyId: string) => VisitRecord[];
+  getVisitsByClaimId: (claimId: string) => VisitRecord[];
+  getWarrantyJourney: (warrantyId: string) => any;
   getClosedLoopStats: (startDate?: string, endDate?: string) => {
     storeId: string;
     storeName: string;
@@ -579,6 +581,157 @@ export const useWarrantyStore = create<WarrantyState>((set, get) => ({
   getVisitsByWarrantyId: (warrantyId) => {
     const { visits } = get();
     return visits.filter((v) => v.warrantyId === warrantyId);
+  },
+
+  getVisitsByClaimId: (claimId) => {
+    const { visits } = get();
+    return visits.filter((v) => v.claimId === claimId);
+  },
+
+  getWarrantyJourney: (warrantyId) => {
+    const { warranties, claims, repairs, disputes, visits } = get();
+    const warranty = warranties.find((w) => w.id === warrantyId);
+    if (!warranty) return null;
+
+    const journey: any[] = [
+      {
+        type: 'issue',
+        title: '质保卡发放',
+        time: warranty.issueDate,
+        icon: 'Shield',
+        description: `${warranty.phoneModel} ${warranty.repairContent}`,
+        operator: warranty.technician,
+        store: warranty.storeName,
+      },
+    ];
+
+    const warrantyClaims = claims
+      .filter((c) => c.warrantyId === warrantyId)
+      .sort((a, b) => dayjs(a.submitDate).valueOf() - dayjs(b.submitDate).valueOf());
+
+    warrantyClaims.forEach((claim) => {
+      journey.push({
+        type: 'claim_submit',
+        title: '核销申请提交',
+        time: claim.submitDate,
+        icon: 'FileText',
+        description: claim.faultDescription,
+        operator: claim.handler || '门店技师',
+        claimId: claim.id,
+        store: claim.storeName,
+      });
+
+      if (claim.status === 'approved') {
+        journey.push({
+          type: 'claim_approved',
+          title: '检测通过',
+          time: claim.submitDate,
+          icon: 'CheckCircle',
+          description: claim.isCovered ? '符合保修范围' : '不符合保修范围',
+          operator: claim.handler || '审核员',
+          claimId: claim.id,
+          detectionResult: claim.detectionResult,
+        });
+      } else if (claim.status === 'rejected') {
+        journey.push({
+          type: 'claim_rejected',
+          title: '检测拒保',
+          time: claim.submitDate,
+          icon: 'XCircle',
+          description: claim.rejectReason || '不符合保修条件',
+          operator: claim.handler || '审核员',
+          claimId: claim.id,
+          detectionResult: claim.detectionResult,
+        });
+      } else {
+        journey.push({
+          type: 'claim_pending',
+          title: '待审核',
+          time: claim.submitDate,
+          icon: 'Clock',
+          description: claim.detectionResult || '等待审核结果',
+          operator: claim.handler || '待分配',
+          claimId: claim.id,
+        });
+      }
+
+      if (claim.repair) {
+        const repair = claim.repair;
+        journey.push({
+          type: 'repair_done',
+          title: '返修完成',
+          time: repair.completeDate,
+          icon: 'Wrench',
+          description: `${repair.solutionType === 'free' ? '免费维修' : repair.solutionType === 'discounted' ? '折价更换' : repair.solutionType === 'escalated' ? '升级主管' : '拒保处理'}，费用 ¥${repair.cost}`,
+          operator: repair.technician,
+          claimId: claim.id,
+          repairId: repair.id,
+          parts: repair.parts,
+        });
+
+        if (repair.customerSigned && repair.signDate) {
+          journey.push({
+            type: 'signed',
+            title: '客户签收',
+            time: repair.signDate,
+            icon: 'Handshake',
+            description: '客户已确认签收',
+            claimId: claim.id,
+          });
+        }
+      }
+
+      const claimDisputes = disputes.filter((d) => d.claimId === claim.id);
+      claimDisputes.forEach((d) => {
+        journey.push({
+          type: 'dispute',
+          title: '争议处理',
+          time: d.handleDate || d.submitDate,
+          icon: 'AlertOctagon',
+          description: `${d.status.startsWith('resolved') ? '已解决' : d.status === 'rejected' ? '已驳回' : d.status === 'escalated' ? '已升级' : '待处理'} - ${d.reason}`,
+          operator: d.handler || '待处理',
+          disputeId: d.id,
+          claimId: claim.id,
+          liability: d.liability,
+          resolution: d.resolution,
+        });
+      });
+
+      const claimVisits = visits.filter((v) => v.claimId === claim.id);
+      claimVisits.forEach((v) => {
+        journey.push({
+          type: 'visit',
+          title: '售后回访',
+          time: v.visitDate,
+          icon: 'MessageSquare',
+          description: `${v.content}（满意度：${v.satisfaction}星）`,
+          operator: v.operator,
+          visitId: v.id,
+          claimId: claim.id,
+          satisfaction: v.satisfaction,
+          followUp: v.followUp,
+        });
+      });
+    });
+
+    const warrantyOnlyVisits = visits.filter(
+      (v) => v.warrantyId === warrantyId && !v.claimId
+    );
+    warrantyOnlyVisits.forEach((v) => {
+      journey.push({
+        type: 'visit',
+        title: v.visitType === 'expiry_reminder' ? '到期提醒' : '客户回访',
+        time: v.visitDate,
+        icon: 'MessageSquare',
+        description: `${v.content}（满意度：${v.satisfaction}星）`,
+        operator: v.operator,
+        visitId: v.id,
+        satisfaction: v.satisfaction,
+      });
+    });
+
+    journey.sort((a, b) => dayjs(a.time).valueOf() - dayjs(b.time).valueOf());
+    return { warranty, events: journey };
   },
 
   getClosedLoopStats: (startDate?: string, endDate?: string) => {

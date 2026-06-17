@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Shield,
   ShieldCheck,
@@ -65,6 +66,7 @@ const TIME_OPTIONS: FormOption[] = [
 ];
 
 export default function Stats() {
+  const navigate = useNavigate();
   const { getStats, getExpiringWarranties, visits, warranties, getClosedLoopStats } = useWarrantyStore();
   const [timeRange, setTimeRange] = useState('month');
   const [startDate, setStartDate] = useState(dayjs().startOf('month').format('YYYY-MM-DD'));
@@ -763,7 +765,15 @@ export default function Stats() {
                             ) : (
                               store.details.warranties.map((w) => (
                                 <tr key={w.id} className="border-t border-dark-700 hover:bg-dark-700/20">
-                                  <td className="py-2 px-3 text-sm text-primary-400 font-mono">{w.cardNo}</td>
+                                  <td
+                                    className="py-2 px-3 text-sm text-primary-400 font-mono cursor-pointer hover:underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/review?cardNo=${w.cardNo}`);
+                                    }}
+                                  >
+                                    {w.cardNo}
+                                  </td>
                                   <td className="py-2 px-3 text-sm text-white">{w.customerName}</td>
                                   <td className="py-2 px-3 text-sm text-dark-300">{w.phoneModel}</td>
                                   <td className="py-2 px-3 text-sm text-dark-300">{w.issueDate}</td>
@@ -806,7 +816,15 @@ export default function Stats() {
                               store.details.claims.map((c) => (
                                 <tr key={c.id} className="border-t border-dark-700 hover:bg-dark-700/20">
                                   <td className="py-2 px-3 text-sm text-warning-400 font-mono">{c.id}</td>
-                                  <td className="py-2 px-3 text-sm text-primary-400 font-mono">{c.cardNo}</td>
+                                  <td
+                                    className="py-2 px-3 text-sm text-primary-400 font-mono cursor-pointer hover:underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/review?cardNo=${c.cardNo}`);
+                                    }}
+                                  >
+                                    {c.cardNo}
+                                  </td>
                                   <td className="py-2 px-3 text-sm text-white">{c.customerName}</td>
                                   <td className="py-2 px-3 text-sm text-dark-300 max-w-[200px] truncate">{c.faultDescription}</td>
                                   <td className="py-2 px-3 text-sm text-dark-300">{c.submitDate}</td>
@@ -859,7 +877,15 @@ export default function Stats() {
                               store.details.repairs.map((r) => (
                                 <tr key={r.id} className="border-t border-dark-700 hover:bg-dark-700/20">
                                   <td className="py-2 px-3 text-sm text-primary-400 font-mono">{r.id}</td>
-                                  <td className="py-2 px-3 text-sm text-warning-400 font-mono">{r.cardNo}</td>
+                                  <td
+                                    className="py-2 px-3 text-sm text-warning-400 font-mono cursor-pointer hover:underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/review?cardNo=${r.cardNo}`);
+                                    }}
+                                  >
+                                    {r.cardNo}
+                                  </td>
                                   <td className="py-2 px-3 text-sm text-white">{r.customerName}</td>
                                   <td className="py-2 px-3">
                                     <span className={`text-xs px-2 py-1 rounded-md ${
@@ -915,7 +941,15 @@ export default function Stats() {
                               store.details.visits.map((v) => (
                                 <tr key={v.id} className="border-t border-dark-700 hover:bg-dark-700/20">
                                   <td className="py-2 px-3 text-sm text-primary-400 font-mono">{v.id}</td>
-                                  <td className="py-2 px-3 text-sm text-warning-400 font-mono">{v.cardNo}</td>
+                                  <td
+                                    className="py-2 px-3 text-sm text-warning-400 font-mono cursor-pointer hover:underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/review?cardNo=${v.cardNo}`);
+                                    }}
+                                  >
+                                    {v.cardNo}
+                                  </td>
                                   <td className="py-2 px-3 text-sm text-white">{v.customerName}</td>
                                   <td className="py-2 px-3 text-sm text-dark-300 max-w-[200px] truncate">{v.content}</td>
                                   <td className="py-2 px-3">{renderStars(v.satisfaction)}</td>

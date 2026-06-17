@@ -13,7 +13,7 @@ type SearchType = 'phone' | 'card';
 
 export default function Query() {
   const navigate = useNavigate();
-  const { searchWarranties, getBlacklistByPhone, getDisputesByClaimId, getVisitsByWarrantyId } = useWarrantyStore();
+  const { searchWarranties, getBlacklistByPhone, getDisputesByClaimId, getVisitsByClaimId } = useWarrantyStore();
 
   const [searchType, setSearchType] = useState<SearchType>('phone');
   const [keyword, setKeyword] = useState('');
@@ -28,7 +28,7 @@ export default function Query() {
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [showClaimDetail, setShowClaimDetail] = useState(false);
   const [claimDisputes, setClaimDisputes] = useState<DisputeRecord[]>([]);
-  const [warrantyVisits, setWarrantyVisits] = useState<VisitRecord[]>([]);
+  const [claimVisits, setClaimVisits] = useState<VisitRecord[]>([]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
@@ -372,7 +372,7 @@ export default function Query() {
                         onClick={() => {
                           setSelectedClaim(claim);
                           setClaimDisputes(getDisputesByClaimId(claim.id));
-                          setWarrantyVisits(getVisitsByWarrantyId(selectedWarranty.id));
+                          setClaimVisits(getVisitsByClaimId(claim.id));
                           setShowClaimDetail(true);
                         }}
                       >
@@ -812,14 +812,14 @@ export default function Query() {
                 </div>
               )}
 
-              {warrantyVisits.length > 0 && (
+              {claimVisits.length > 0 && (
                 <div className="border-t border-dark-700 pt-5">
                   <h4 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-primary-400" />
-                    售后回访记录
+                    本次售后回访记录
                   </h4>
                   <div className="space-y-3">
-                    {warrantyVisits.map((visit) => (
+                    {claimVisits.map((visit) => (
                       <div key={visit.id} className="bg-dark-800/50 rounded-xl p-4 border border-dark-700">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">

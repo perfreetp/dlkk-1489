@@ -274,13 +274,15 @@ export const mockVisits: VisitRecord[] = [
   {
     id: 'V001',
     warrantyId: '1',
+    claimId: 'C001',
     cardNo: 'W202401001',
     customerName: '张三',
     phone: '13800138001',
-    content: '回访确认维修效果',
+    content: '回访确认维修效果，屏幕使用正常',
     satisfaction: 5,
     visitDate: '2024-06-18',
     operator: '客服小王',
+    visitType: 'after_service',
     followUp: '客户表示满意，无需后续处理',
   },
   {
@@ -289,10 +291,11 @@ export const mockVisits: VisitRecord[] = [
     cardNo: 'W202401003',
     customerName: '王五',
     phone: '13800138003',
-    content: '质保到期提醒',
+    content: '质保到期提醒，建议及时关注设备状态',
     satisfaction: 4,
     visitDate: '2024-06-17',
     operator: '客服小李',
+    visitType: 'expiry_reminder',
   },
 ];
 

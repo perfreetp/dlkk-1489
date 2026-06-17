@@ -86,6 +86,7 @@ export interface BlacklistItem {
 export interface VisitRecord {
   id: string;
   warrantyId: string;
+  claimId?: string;
   cardNo: string;
   customerName: string;
   phone: string;
@@ -93,6 +94,7 @@ export interface VisitRecord {
   satisfaction: number;
   visitDate: string;
   operator: string;
+  visitType?: 'after_service' | 'expiry_reminder' | 'dispute_followup' | 'other';
   followUp?: string;
 }
 
